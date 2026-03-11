@@ -1,4 +1,6 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { writeFileSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
 
 const s3 = new S3Client({
   region: process.env.AWS_REGION,
@@ -9,6 +11,13 @@ const s3 = new S3Client({
 });
 
 const BUCKET = process.env.AWS_BUCKET_NAME;
+const LOCAL_S3_DIR = join(process.cwd(), "data", "s3");
+
+let debug = false;
+
+export function setDebug(enabled) {
+  debug = enabled;
+}
 
 export async function upload(key, body) {
   await s3.send(
@@ -18,6 +27,13 @@ export async function upload(key, body) {
       Body: body,
     })
   );
+
+  if (debug) {
+    const localPath = join(LOCAL_S3_DIR, key);
+    mkdirSync(dirname(localPath), { recursive: true });
+    writeFileSync(localPath, body);
+  }
+
   return key;
 }
 

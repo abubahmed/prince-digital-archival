@@ -5,7 +5,6 @@ import { fetchArticles } from "../fetchers/articles.mjs";
 import { getBrowser } from "../media/browser.mjs";
 import { upload, buildKey } from "../s3/client.mjs";
 import { splitByMonth } from "../util/dates.mjs";
-import { mapConcurrent } from "../util/concurrent.mjs";
 import logger from "../util/logger.mjs";
 
 const RETRIES = 5;
@@ -120,46 +119,51 @@ async function archiveArticleBatch(items, browser) {
   let skipped = 0;
   let failed = 0;
 
-  const results = await mapConcurrent(items, CONCURRENCY, async (item) => {
-    try {
-      return await processArticle(item, browser);
-    } catch (err) {
-      return { status: "failed", item, error: err };
-    }
-  });
+  for (let i = 0; i < items.length; i += CONCURRENCY) {
+    const chunk = items.slice(i, i + CONCURRENCY);
 
-  // sort by timestamp so DB inserts preserve chronological order
-  results.sort((a, b) => {
-    const tsA = a.row?.timestamp ?? new Date(a.item?.published_at ?? 0);
-    const tsB = b.row?.timestamp ?? new Date(b.item?.published_at ?? 0);
-    return tsA - tsB;
-  });
+    // process chunk in parallel
+    const results = await Promise.all(chunk.map(async (item) => {
+      try {
+        return await processArticle(item, browser);
+      } catch (err) {
+        return { status: "failed", item, error: err };
+      }
+    }));
 
-  for (const result of results) {
-    if (result.status === "skipped") { skipped++; continue; }
-    if (result.status === "failed") {
-      failed++;
-      logger.error(`Failed to archive article ${result.item.id}: ${result.error.message}`);
-      await db.insert(failedItems).values({
-        source: "articles",
-        error: result.error.message,
-        rawData: result.item,
-      }).catch((e) => logger.error(`Failed to log failure: ${e.message}`));
-      continue;
-    }
+    // sort by timestamp, then insert sequentially
+    results.sort((a, b) => {
+      const tsA = a.row?.timestamp ?? new Date(a.item?.published_at ?? 0);
+      const tsB = b.row?.timestamp ?? new Date(b.item?.published_at ?? 0);
+      return tsA - tsB;
+    });
 
-    try {
-      await db.insert(articles).values(result.row);
-      archived++;
-      logger.info(`Archived article ${result.row.id}: ${result.row.headline}`);
-    } catch (err) {
-      failed++;
-      logger.error(`Failed to insert article ${result.row.id}: ${err.message}`);
-      await db.insert(failedItems).values({
-        source: "articles",
-        error: err.message,
-        rawData: result.row.metadata,
-      }).catch((e) => logger.error(`Failed to log failure: ${e.message}`));
+    for (const result of results) {
+      if (result.status === "skipped") { skipped++; continue; }
+      if (result.status === "failed") {
+        failed++;
+        logger.error(`Failed to archive article ${result.item.id}: ${result.error.message}`);
+        await db.insert(failedItems).values({
+          source: "articles",
+          error: result.error.message,
+          rawData: result.item,
+        }).catch((e) => logger.error(`Failed to log failure: ${e.message}`));
+        continue;
+      }
+
+      try {
+        await db.insert(articles).values(result.row);
+        archived++;
+        logger.info(`Archived article ${result.row.id}: ${result.row.headline}`);
+      } catch (err) {
+        failed++;
+        logger.error(`Failed to insert article ${result.row.id}: ${err.message}`);
+        await db.insert(failedItems).values({
+          source: "articles",
+          error: err.message,
+          rawData: result.row.metadata,
+        }).catch((e) => logger.error(`Failed to log failure: ${e.message}`));
+      }
     }
   }
 
