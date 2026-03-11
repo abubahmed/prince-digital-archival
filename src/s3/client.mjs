@@ -29,9 +29,13 @@ export async function upload(key, body) {
   );
 
   if (debug) {
-    const localPath = join(LOCAL_S3_DIR, key);
-    mkdirSync(dirname(localPath), { recursive: true });
-    writeFileSync(localPath, body);
+    try {
+      const localPath = join(LOCAL_S3_DIR, key);
+      mkdirSync(dirname(localPath), { recursive: true });
+      writeFileSync(localPath, Buffer.from(body));
+    } catch (err) {
+      console.error(`Debug save failed for ${key}: ${err.message}`);
+    }
   }
 
   return key;

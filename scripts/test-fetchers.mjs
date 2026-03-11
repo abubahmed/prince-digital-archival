@@ -27,7 +27,7 @@ const recentStart = new Date(recentEnd);
 recentStart.setMonth(recentStart.getMonth() - 1);
 
 async function fetchOldestSamples(name, fetchFn) {
-  let cursor = new Date("1969-01-01");
+  let cursor = new Date("1995-01-01");
   while (cursor < now) {
     const end = new Date(cursor);
     end.setMonth(end.getMonth() + 1);

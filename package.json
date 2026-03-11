@@ -9,6 +9,7 @@
     "db:push": "drizzle-kit push",
     "db:flush": "node scripts/flush-db.mjs",
     "s3:flush": "node scripts/flush-s3.mjs",
+    "flush": "node scripts/flush-s3.mjs && node scripts/flush-db.mjs",
     "fetch": "node scripts/test-fetchers.mjs",
     "archive": "node scripts/archive.mjs",
     "archive:articles": "node scripts/archive-articles.mjs",
