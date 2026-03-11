@@ -1,6 +1,7 @@
 import logger from "../util/logger.mjs";
 
 export async function downloadBuffer(url) {
+  logger.trace(`Downloading buffer from ${url.slice(0, 80)}`);
   const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`Download failed (${res.status}): ${url}`);

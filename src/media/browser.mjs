@@ -4,6 +4,7 @@ import logger from "../util/logger.mjs";
 let browser = null;
 
 export async function getBrowser() {
+  logger.trace("Getting browser instance");
   if (!browser || !browser.connected) {
     logger.info("Launching browser...");
     browser = await puppeteer.launch({
@@ -15,6 +16,7 @@ export async function getBrowser() {
 }
 
 export async function closeBrowser() {
+  logger.trace("Closing browser instance");
   if (browser) {
     await browser.close();
     browser = null;

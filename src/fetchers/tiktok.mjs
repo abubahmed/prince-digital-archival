@@ -7,6 +7,7 @@ const apify = new ApifyClient({ token: process.env.APIFY_API_TOKEN });
 const ACTOR_ID = "clockworks/tiktok-scraper";
 
 export async function fetchTiktokPosts(start, end) {
+  logger.trace(`Calling Apify TikTok scraper for ${formatDate(start)} to ${formatDate(end)}`);
   logger.info(`Fetching TikTok posts from ${formatDate(start)} to ${formatDate(end)}`);
 
   try {

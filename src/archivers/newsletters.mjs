@@ -11,6 +11,7 @@ const RETRIES = 3;
 const PAGE_TIMEOUT = 120000;
 
 async function convertNewsletterToPdf(url, browser) {
+  logger.trace(`Converting newsletter to PDF: ${url}`);
   let page;
 
   for (let attempt = 1; attempt <= RETRIES; attempt++) {
@@ -69,6 +70,7 @@ async function convertNewsletterToPdf(url, browser) {
 }
 
 async function archiveNewsletterBatch(items, browser) {
+  logger.trace(`Archiving batch of ${items.length} newsletters`);
   let archived = 0;
   let skipped = 0;
   let failed = 0;
@@ -134,6 +136,7 @@ async function archiveNewsletterBatch(items, browser) {
 }
 
 export async function archiveNewsletters(start, end) {
+  logger.trace(`Starting newsletter archiver: ${start.toISOString().slice(0, 10)} to ${end.toISOString().slice(0, 10)}`);
   const intervals = splitByMonth(start, end);
   const browser = await getBrowser();
 

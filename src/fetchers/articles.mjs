@@ -61,6 +61,7 @@ export function cleanHtmlContent(html) {
 }
 
 export async function fetchArticles(start, end) {
+  logger.trace(`Fetching articles from ${start.toISOString().slice(0, 10)} to ${end.toISOString().slice(0, 10)}`);
   const articles = [];
   let page = 1;
 

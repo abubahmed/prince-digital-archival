@@ -12,6 +12,7 @@ const PAGE_TIMEOUT = 60000;
 const CONCURRENCY = 5;
 
 async function convertArticleToPdf(url, browser) {
+  logger.trace(`Converting article to PDF: ${url}`);
   let page;
 
   for (let attempt = 1; attempt <= RETRIES; attempt++) {
@@ -79,6 +80,7 @@ async function convertArticleToPdf(url, browser) {
 }
 
 async function processArticle(item, browser) {
+  logger.trace(`Processing article ${item.id}: ${item.headline}`);
   const existing = await db.select({ id: articles.id })
     .from(articles)
     .where(eq(articles.id, String(item.id)))
@@ -115,6 +117,7 @@ async function processArticle(item, browser) {
 }
 
 async function archiveArticleBatch(items, browser) {
+  logger.trace(`Archiving batch of ${items.length} articles`);
   let archived = 0;
   let skipped = 0;
   let failed = 0;
@@ -171,6 +174,7 @@ async function archiveArticleBatch(items, browser) {
 }
 
 export async function archiveArticles(start, end) {
+  logger.trace(`Starting article archiver: ${start.toISOString().slice(0, 10)} to ${end.toISOString().slice(0, 10)}`);
   const intervals = splitByMonth(start, end);
   const browser = await getBrowser();
 

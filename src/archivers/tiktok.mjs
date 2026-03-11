@@ -9,6 +9,7 @@ import { splitByMonth } from "../util/dates.mjs";
 import logger from "../util/logger.mjs";
 
 async function downloadMedia(item) {
+  logger.trace(`Downloading media for TikTok post ${item.id}`);
   // slideshow — multiple images
   if (item.mediaUrls?.length) {
     return { buffer: await imagesToPdf(item.mediaUrls), ext: "pdf" };
@@ -24,6 +25,7 @@ async function downloadMedia(item) {
 }
 
 async function archiveTiktokBatch(items) {
+  logger.trace(`Archiving batch of ${items.length} TikTok posts`);
   let archived = 0;
   let skipped = 0;
   let failed = 0;
@@ -81,6 +83,7 @@ async function archiveTiktokBatch(items) {
 }
 
 export async function archiveTiktok(start, end) {
+  logger.trace(`Starting TikTok archiver: ${start.toISOString().slice(0, 10)} to ${end.toISOString().slice(0, 10)}`);
   const intervals = splitByMonth(start, end);
 
   // resume from last archived post

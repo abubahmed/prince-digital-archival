@@ -5,6 +5,7 @@ import logger from "../util/logger.mjs";
 import { downloadImage } from "./download.mjs";
 
 export async function imagesToPdf(urls) {
+  logger.trace(`Building PDF from ${urls?.length ?? 0} image(s)`);
   if (!urls || urls.length === 0) {
     throw new Error("No image URLs provided");
   }

@@ -10,6 +10,7 @@ import logger from "../util/logger.mjs";
 const BATCH_SIZE = 50;
 
 async function downloadMedia(item) {
+  logger.trace(`Downloading media for Instagram post ${item.id} (${item.type})`);
   if (item.type === "Video" && item.videoUrl) {
     return { buffer: await downloadVideo(item.videoUrl), ext: "mp4" };
   }
@@ -26,6 +27,7 @@ async function downloadMedia(item) {
 }
 
 async function archiveInstagramBatch(items) {
+  logger.trace(`Archiving batch of ${items.length} Instagram posts`);
   let archived = 0;
   let skipped = 0;
   let failed = 0;
@@ -83,6 +85,7 @@ async function archiveInstagramBatch(items) {
 }
 
 export async function archiveInstagram(since) {
+  logger.trace(`Starting Instagram archiver since ${since.toISOString().slice(0, 10)}`);
   // resume from last archived post if possible
   const latest = await db.select({ timestamp: instagramPosts.timestamp })
     .from(instagramPosts)

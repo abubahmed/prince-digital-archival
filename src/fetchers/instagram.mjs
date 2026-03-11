@@ -18,6 +18,7 @@ function isValidPost(item) {
 }
 
 export async function fetchInstagramPosts(since) {
+  logger.trace(`Calling Apify Instagram scraper for posts since ${formatDate(since)}`);
   logger.info(`Fetching Instagram posts since ${formatDate(since)}`);
 
   try {

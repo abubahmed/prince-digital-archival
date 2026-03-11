@@ -10,6 +10,7 @@ mailchimp.setConfig({
 const BATCH_SIZE = 100;
 
 export async function fetchNewsletters(start, end) {
+  logger.trace(`Calling Mailchimp API for campaigns from ${start.toISOString().slice(0, 10)} to ${end.toISOString().slice(0, 10)}`);
   logger.info(`Fetching newsletters from ${start.toISOString()} to ${end.toISOString()}`);
 
   const newsletters = [];
@@ -55,6 +56,7 @@ export async function fetchNewsletters(start, end) {
 }
 
 async function populateContent(campaign) {
+  logger.trace(`Fetching content for newsletter ${campaign.id}`);
   try {
     const response = await mailchimp.campaigns.getContent(campaign.id);
     const raw = response.plain_text ?? response.html ?? null;

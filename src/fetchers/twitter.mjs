@@ -7,6 +7,7 @@ const apify = new ApifyClient({ token: process.env.APIFY_API_TOKEN });
 const ACTOR_ID = "apidojo/tweet-scraper";
 
 export async function fetchTweets(start, end) {
+  logger.trace(`Calling Apify tweet scraper for ${formatDate(start)} to ${formatDate(end)}`);
   logger.info(`Fetching tweets from ${formatDate(start)} to ${formatDate(end)}`);
 
   try {

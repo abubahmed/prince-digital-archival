@@ -1,6 +1,7 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
+import logger from "../util/logger.mjs";
 
 const s3 = new S3Client({
   region: process.env.AWS_REGION,
@@ -20,6 +21,7 @@ export function setDebug(enabled) {
 }
 
 export async function upload(key, body) {
+  logger.trace(`Uploading to S3: ${key} (${body.length} bytes)`);
   await s3.send(
     new PutObjectCommand({
       Bucket: BUCKET,

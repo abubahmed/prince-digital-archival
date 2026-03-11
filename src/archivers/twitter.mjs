@@ -15,6 +15,7 @@ function extractImageUrls(item) {
 }
 
 async function archiveTweetBatch(items) {
+  logger.trace(`Archiving batch of ${items.length} tweets`);
   let archived = 0;
   let skipped = 0;
   let failed = 0;
@@ -71,6 +72,7 @@ async function archiveTweetBatch(items) {
 }
 
 export async function archiveTwitter(start, end) {
+  logger.trace(`Starting Twitter archiver: ${start.toISOString().slice(0, 10)} to ${end.toISOString().slice(0, 10)}`);
   const intervals = splitByMonth(start, end);
 
   // resume from last archived tweet
