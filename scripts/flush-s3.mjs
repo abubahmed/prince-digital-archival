@@ -1,5 +1,7 @@
 import "dotenv/config";
 import { S3Client, ListObjectsV2Command, DeleteObjectsCommand } from "@aws-sdk/client-s3";
+import { rmSync } from "fs";
+import { join } from "path";
 import logger from "../src/util/logger.mjs";
 
 const s3 = new S3Client({
@@ -38,3 +40,11 @@ do {
 } while (continuationToken);
 
 logger.success(`Flushed ${totalDeleted} objects from ${BUCKET}/${PREFIX}`);
+
+const localDir = join(process.cwd(), "data", "s3");
+try {
+  rmSync(localDir, { recursive: true, force: true });
+  logger.success(`Deleted local debug directory: ${localDir}`);
+} catch (err) {
+  logger.warn(`Could not delete local debug directory: ${err.message}`);
+}

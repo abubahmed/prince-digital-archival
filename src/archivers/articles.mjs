@@ -1,6 +1,6 @@
 import { eq, desc } from "drizzle-orm";
 import db from "../db/client.mjs";
-import { articles, failedItems } from "../db/schema.mjs";
+import { articles } from "../db/schema.mjs";
 import { fetchArticles } from "../fetchers/articles.mjs";
 import { getBrowser } from "../media/browser.mjs";
 import { upload, buildKey } from "../s3/client.mjs";
@@ -9,7 +9,7 @@ import logger from "../util/logger.mjs";
 
 const RETRIES = 5;
 const PAGE_TIMEOUT = 60000;
-const CONCURRENCY = 5;
+const CONCURRENCY = 10;
 
 async function convertArticleToPdf(url, browser) {
   logger.trace(`Converting article to PDF: ${url}`);
@@ -92,7 +92,7 @@ async function processArticle(item, browser) {
   try {
     const pdfBuffer = await convertArticleToPdf(item.url, browser);
     if (pdfBuffer) {
-      s3Key = buildKey("articles", item.published_at, item.id, "media.pdf");
+      s3Key = buildKey("articles", item.published_at, item.id, "media.pdf", item.slug);
       await upload(s3Key, pdfBuffer);
     } else {
       logger.warn(`No PDF generated for article ${item.id}, archiving without media`);
@@ -120,57 +120,30 @@ async function archiveArticleBatch(items, browser) {
   logger.trace(`Archiving batch of ${items.length} articles`);
   let archived = 0;
   let skipped = 0;
-  let failed = 0;
 
   for (let i = 0; i < items.length; i += CONCURRENCY) {
     const chunk = items.slice(i, i + CONCURRENCY);
 
     // process chunk in parallel
-    const results = await Promise.all(chunk.map(async (item) => {
-      try {
-        return await processArticle(item, browser);
-      } catch (err) {
-        return { status: "failed", item, error: err };
-      }
-    }));
+    const results = await Promise.all(chunk.map((item) => processArticle(item, browser)));
 
     // sort by timestamp, then insert sequentially
     results.sort((a, b) => {
-      const tsA = a.row?.timestamp ?? new Date(a.item?.published_at ?? 0);
-      const tsB = b.row?.timestamp ?? new Date(b.item?.published_at ?? 0);
+      const tsA = a.row?.timestamp ?? new Date(0);
+      const tsB = b.row?.timestamp ?? new Date(0);
       return tsA - tsB;
     });
 
     for (const result of results) {
       if (result.status === "skipped") { skipped++; continue; }
-      if (result.status === "failed") {
-        failed++;
-        logger.error(`Failed to archive article ${result.item.id}: ${result.error.message}`);
-        await db.insert(failedItems).values({
-          source: "articles",
-          error: result.error.message,
-          rawData: result.item,
-        }).catch((e) => logger.error(`Failed to log failure: ${e.message}`));
-        continue;
-      }
 
-      try {
-        await db.insert(articles).values(result.row);
-        archived++;
-        logger.info(`Archived article ${result.row.id}: ${result.row.headline}`);
-      } catch (err) {
-        failed++;
-        logger.error(`Failed to insert article ${result.row.id}: ${err.message}`);
-        await db.insert(failedItems).values({
-          source: "articles",
-          error: err.message,
-          rawData: result.row.metadata,
-        }).catch((e) => logger.error(`Failed to log failure: ${e.message}`));
-      }
+      await db.insert(articles).values(result.row);
+      archived++;
+      logger.info(`Archived article ${result.row.id}: ${result.row.headline}`);
     }
   }
 
-  return { archived, skipped, failed };
+  return { archived, skipped };
 }
 
 export async function archiveArticles(start, end) {
@@ -197,7 +170,6 @@ export async function archiveArticles(start, end) {
 
   let totalArchived = 0;
   let totalSkipped = 0;
-  let totalFailed = 0;
 
   for (let i = resumeIdx; i < intervals.length; i++) {
     const { start: intervalStart, end: intervalEnd } = intervals[i];
@@ -211,15 +183,14 @@ export async function archiveArticles(start, end) {
       continue;
     }
 
-    const { archived, skipped, failed } = await archiveArticleBatch(items, browser);
+    const { archived, skipped } = await archiveArticleBatch(items, browser);
     totalArchived += archived;
     totalSkipped += skipped;
-    totalFailed += failed;
 
     const filled = Math.round(pct / 5);
     const bar = "█".repeat(filled) + "░".repeat(20 - filled);
-    logger.info(`[${bar}] ${pct}% (${i + 1}/${intervals.length}) | ${totalArchived} archived, ${totalSkipped} skipped, ${totalFailed} failed`);
+    logger.info(`[${bar}] ${pct}% (${i + 1}/${intervals.length}) | ${totalArchived} archived, ${totalSkipped} skipped`);
   }
 
-  logger.success(`Articles done: ${totalArchived} archived, ${totalSkipped} skipped, ${totalFailed} failed`);
+  logger.success(`Articles done: ${totalArchived} archived, ${totalSkipped} skipped`);
 }

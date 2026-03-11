@@ -31,21 +31,23 @@ export async function upload(key, body) {
   );
 
   if (debug) {
+    logger.info(`Debug mode: saving to ${LOCAL_S3_DIR}/${key}`);
     try {
       const localPath = join(LOCAL_S3_DIR, key);
       mkdirSync(dirname(localPath), { recursive: true });
       writeFileSync(localPath, Buffer.from(body));
     } catch (err) {
-      console.error(`Debug save failed for ${key}: ${err.message}`);
+      logger.error(`Debug save failed for ${key}: ${err.message}`);
     }
   }
 
   return key;
 }
 
-export function buildKey(source, timestamp, id, filename) {
+export function buildKey(source, timestamp, id, filename, slug) {
   const date = new Date(timestamp);
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
-  return `archives/${source}/${year}/${month}/${id}/${filename}`;
+  const folder = slug ? `${id}-${slug}` : id;
+  return `archives/${source}/${year}/${month}/${folder}/${filename}`;
 }

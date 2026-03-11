@@ -67,11 +67,3 @@ export const newsletters = pgTable("newsletters", {
   metadata: jsonb("metadata"),
   s3_key: text("s3_key"),
 });
-
-export const failedItems = pgTable("failed_items", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  source: text("source"),
-  attemptedAt: timestamp("attempted_at").defaultNow().notNull(),
-  error: text("error"),
-  rawData: jsonb("raw_data"),
-});

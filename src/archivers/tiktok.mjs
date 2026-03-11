@@ -1,6 +1,6 @@
 import { eq, desc } from "drizzle-orm";
 import db from "../db/client.mjs";
-import { tiktokPosts, failedItems } from "../db/schema.mjs";
+import { tiktokPosts } from "../db/schema.mjs";
 import { fetchTiktokPosts } from "../fetchers/tiktok.mjs";
 import { downloadVideo } from "../media/download.mjs";
 import { imagesToPdf } from "../media/pdf.mjs";
@@ -28,58 +28,46 @@ async function archiveTiktokBatch(items) {
   logger.trace(`Archiving batch of ${items.length} TikTok posts`);
   let archived = 0;
   let skipped = 0;
-  let failed = 0;
 
   for (const item of items) {
-    try {
-      const existing = await db.select({ id: tiktokPosts.id })
-        .from(tiktokPosts)
-        .where(eq(tiktokPosts.id, String(item.id)))
-        .limit(1);
+    const existing = await db.select({ id: tiktokPosts.id })
+      .from(tiktokPosts)
+      .where(eq(tiktokPosts.id, String(item.id)))
+      .limit(1);
 
-      if (existing.length > 0) {
-        skipped++;
-        continue;
-      }
-
-      let s3Key = null;
-      try {
-        const media = await downloadMedia(item);
-        if (media) {
-          const filename = `media.${media.ext}`;
-          s3Key = buildKey("tiktok", item.createTimeISO, item.id, filename);
-          await upload(s3Key, media.buffer);
-        } else {
-          logger.warn(`No media for TikTok post ${item.id}, archiving without media`);
-        }
-      } catch (mediaErr) {
-        logger.warn(`Media failed for TikTok post ${item.id}: ${mediaErr.message}, archiving without media`);
-      }
-
-      await db.insert(tiktokPosts).values({
-        id: String(item.id),
-        timestamp: new Date(item.createTimeISO),
-        url: `https://www.tiktok.com/@thedailyprincetonian/video/${item.id}`,
-        caption: item.text || null,
-        s3_key: s3Key,
-        metadata: item,
-      });
-
-      archived++;
-      logger.info(`Archived TikTok post ${item.id}`);
-    } catch (err) {
-      failed++;
-      logger.error(`Failed to archive TikTok post ${item.id}: ${err.message}`);
-
-      await db.insert(failedItems).values({
-        source: "tiktok",
-        error: err.message,
-        rawData: item,
-      }).catch((e) => logger.error(`Failed to log failure: ${e.message}`));
+    if (existing.length > 0) {
+      skipped++;
+      continue;
     }
+
+    let s3Key = null;
+    try {
+      const media = await downloadMedia(item);
+      if (media) {
+        const filename = `media.${media.ext}`;
+        s3Key = buildKey("tiktok", item.createTimeISO, item.id, filename);
+        await upload(s3Key, media.buffer);
+      } else {
+        logger.warn(`No media for TikTok post ${item.id}, archiving without media`);
+      }
+    } catch (mediaErr) {
+      logger.warn(`Media failed for TikTok post ${item.id}: ${mediaErr.message}, archiving without media`);
+    }
+
+    await db.insert(tiktokPosts).values({
+      id: String(item.id),
+      timestamp: new Date(item.createTimeISO),
+      url: `https://www.tiktok.com/@thedailyprincetonian/video/${item.id}`,
+      caption: item.text || null,
+      s3_key: s3Key,
+      metadata: item,
+    });
+
+    archived++;
+    logger.info(`Archived TikTok post ${item.id}`);
   }
 
-  return { archived, skipped, failed };
+  return { archived, skipped };
 }
 
 export async function archiveTiktok(start, end) {
@@ -104,7 +92,6 @@ export async function archiveTiktok(start, end) {
 
   let totalArchived = 0;
   let totalSkipped = 0;
-  let totalFailed = 0;
 
   for (let i = resumeIdx; i < intervals.length; i++) {
     const { start: intervalStart, end: intervalEnd } = intervals[i];
@@ -118,15 +105,14 @@ export async function archiveTiktok(start, end) {
       continue;
     }
 
-    const { archived, skipped, failed } = await archiveTiktokBatch(items);
+    const { archived, skipped } = await archiveTiktokBatch(items);
     totalArchived += archived;
     totalSkipped += skipped;
-    totalFailed += failed;
 
     const filled = Math.round(pct / 5);
     const bar = "█".repeat(filled) + "░".repeat(20 - filled);
-    logger.info(`[${bar}] ${pct}% (${i + 1}/${intervals.length}) | ${totalArchived} archived, ${totalSkipped} skipped, ${totalFailed} failed`);
+    logger.info(`[${bar}] ${pct}% (${i + 1}/${intervals.length}) | ${totalArchived} archived, ${totalSkipped} skipped`);
   }
 
-  logger.success(`TikTok done: ${totalArchived} archived, ${totalSkipped} skipped, ${totalFailed} failed`);
+  logger.success(`TikTok done: ${totalArchived} archived, ${totalSkipped} skipped`);
 }

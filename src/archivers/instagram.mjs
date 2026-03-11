@@ -1,6 +1,6 @@
 import { eq, desc } from "drizzle-orm";
 import db from "../db/client.mjs";
-import { instagramPosts, failedItems } from "../db/schema.mjs";
+import { instagramPosts } from "../db/schema.mjs";
 import { fetchInstagramPosts } from "../fetchers/instagram.mjs";
 import { downloadVideo } from "../media/download.mjs";
 import { imagesToPdf } from "../media/pdf.mjs";
@@ -30,58 +30,46 @@ async function archiveInstagramBatch(items) {
   logger.trace(`Archiving batch of ${items.length} Instagram posts`);
   let archived = 0;
   let skipped = 0;
-  let failed = 0;
 
   for (const item of items) {
-    try {
-      const existing = await db.select({ id: instagramPosts.id })
-        .from(instagramPosts)
-        .where(eq(instagramPosts.id, String(item.id)))
-        .limit(1);
+    const existing = await db.select({ id: instagramPosts.id })
+      .from(instagramPosts)
+      .where(eq(instagramPosts.id, String(item.id)))
+      .limit(1);
 
-      if (existing.length > 0) {
-        skipped++;
-        continue;
-      }
-
-      let s3Key = null;
-      try {
-        const media = await downloadMedia(item);
-        if (media) {
-          const filename = `media.${media.ext}`;
-          s3Key = buildKey("instagram", item.timestamp, item.id, filename);
-          await upload(s3Key, media.buffer);
-        } else {
-          logger.warn(`No media for Instagram post ${item.id}, archiving without media`);
-        }
-      } catch (mediaErr) {
-        logger.warn(`Media failed for Instagram post ${item.id}: ${mediaErr.message}, archiving without media`);
-      }
-
-      await db.insert(instagramPosts).values({
-        id: String(item.id),
-        timestamp: new Date(item.timestamp),
-        url: item.url,
-        caption: item.caption || null,
-        s3_key: s3Key,
-        metadata: item,
-      });
-
-      archived++;
-      logger.info(`Archived Instagram post ${item.id} (${item.type})`);
-    } catch (err) {
-      failed++;
-      logger.error(`Failed to archive Instagram post ${item.id}: ${err.message}`);
-
-      await db.insert(failedItems).values({
-        source: "instagram",
-        error: err.message,
-        rawData: item,
-      }).catch((e) => logger.error(`Failed to log failure: ${e.message}`));
+    if (existing.length > 0) {
+      skipped++;
+      continue;
     }
+
+    let s3Key = null;
+    try {
+      const media = await downloadMedia(item);
+      if (media) {
+        const filename = `media.${media.ext}`;
+        s3Key = buildKey("instagram", item.timestamp, item.id, filename);
+        await upload(s3Key, media.buffer);
+      } else {
+        logger.warn(`No media for Instagram post ${item.id}, archiving without media`);
+      }
+    } catch (mediaErr) {
+      logger.warn(`Media failed for Instagram post ${item.id}: ${mediaErr.message}, archiving without media`);
+    }
+
+    await db.insert(instagramPosts).values({
+      id: String(item.id),
+      timestamp: new Date(item.timestamp),
+      url: item.url,
+      caption: item.caption || null,
+      s3_key: s3Key,
+      metadata: item,
+    });
+
+    archived++;
+    logger.info(`Archived Instagram post ${item.id} (${item.type})`);
   }
 
-  return { archived, skipped, failed };
+  return { archived, skipped };
 }
 
 export async function archiveInstagram(since) {
@@ -110,7 +98,6 @@ export async function archiveInstagram(since) {
 
   let totalArchived = 0;
   let totalSkipped = 0;
-  let totalFailed = 0;
 
   for (let i = 0; i < items.length; i += BATCH_SIZE) {
     const batch = items.slice(i, i + BATCH_SIZE);
@@ -118,15 +105,14 @@ export async function archiveInstagram(since) {
     const totalBatches = Math.ceil(items.length / BATCH_SIZE);
     const pct = Math.round((batchNum / totalBatches) * 100);
 
-    const { archived, skipped, failed } = await archiveInstagramBatch(batch);
+    const { archived, skipped } = await archiveInstagramBatch(batch);
     totalArchived += archived;
     totalSkipped += skipped;
-    totalFailed += failed;
 
     const filled = Math.round(pct / 5);
     const bar = "█".repeat(filled) + "░".repeat(20 - filled);
-    logger.info(`[${bar}] ${pct}% (${batchNum}/${totalBatches}) | ${totalArchived} archived, ${totalSkipped} skipped, ${totalFailed} failed`);
+    logger.info(`[${bar}] ${pct}% (${batchNum}/${totalBatches}) | ${totalArchived} archived, ${totalSkipped} skipped`);
   }
 
-  logger.success(`Instagram done: ${totalArchived} archived, ${totalSkipped} skipped, ${totalFailed} failed`);
+  logger.success(`Instagram done: ${totalArchived} archived, ${totalSkipped} skipped`);
 }

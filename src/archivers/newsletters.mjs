@@ -1,6 +1,6 @@
 import { eq, desc } from "drizzle-orm";
 import db from "../db/client.mjs";
-import { newsletters, failedItems } from "../db/schema.mjs";
+import { newsletters } from "../db/schema.mjs";
 import { fetchNewsletters } from "../fetchers/newsletters.mjs";
 import { getBrowser } from "../media/browser.mjs";
 import { upload, buildKey } from "../s3/client.mjs";
@@ -73,66 +73,54 @@ async function archiveNewsletterBatch(items, browser) {
   logger.trace(`Archiving batch of ${items.length} newsletters`);
   let archived = 0;
   let skipped = 0;
-  let failed = 0;
 
   for (const item of items) {
-    try {
-      const existing = await db.select({ id: newsletters.id })
-        .from(newsletters)
-        .where(eq(newsletters.id, String(item.id)))
-        .limit(1);
+    const existing = await db.select({ id: newsletters.id })
+      .from(newsletters)
+      .where(eq(newsletters.id, String(item.id)))
+      .limit(1);
 
-      if (existing.length > 0) {
-        skipped++;
-        continue;
-      }
-
-      const archiveUrl = item.long_archive_url || item.archive_url;
-      let s3Key = null;
-
-      if (archiveUrl) {
-        try {
-          const pdfBuffer = await convertNewsletterToPdf(archiveUrl, browser);
-          if (pdfBuffer) {
-            const ts = item.send_time || item.create_time;
-            s3Key = buildKey("newsletters", ts, item.id, "media.pdf");
-            await upload(s3Key, pdfBuffer);
-          } else {
-            logger.warn(`No PDF generated for newsletter ${item.id}, archiving without media`);
-          }
-        } catch (mediaErr) {
-          logger.warn(`Media failed for newsletter ${item.id}: ${mediaErr.message}, archiving without media`);
-        }
-      }
-
-      const ts = new Date(item.send_time || item.create_time);
-      const subjectLine = item.settings?.subject_line || "Daily Newsletter";
-
-      await db.insert(newsletters).values({
-        id: String(item.id),
-        timestamp: ts,
-        url: archiveUrl || null,
-        subjectLine,
-        content: item.content || null,
-        s3_key: s3Key,
-        metadata: item,
-      });
-
-      archived++;
-      logger.info(`Archived newsletter ${item.id}: ${subjectLine}`);
-    } catch (err) {
-      failed++;
-      logger.error(`Failed to archive newsletter ${item.id}: ${err.message}`);
-
-      await db.insert(failedItems).values({
-        source: "newsletters",
-        error: err.message,
-        rawData: item,
-      }).catch((e) => logger.error(`Failed to log failure: ${e.message}`));
+    if (existing.length > 0) {
+      skipped++;
+      continue;
     }
+
+    const archiveUrl = item.long_archive_url || item.archive_url;
+    let s3Key = null;
+
+    if (archiveUrl) {
+      try {
+        const pdfBuffer = await convertNewsletterToPdf(archiveUrl, browser);
+        if (pdfBuffer) {
+          const ts = item.send_time || item.create_time;
+          s3Key = buildKey("newsletters", ts, item.id, "media.pdf");
+          await upload(s3Key, pdfBuffer);
+        } else {
+          logger.warn(`No PDF generated for newsletter ${item.id}, archiving without media`);
+        }
+      } catch (mediaErr) {
+        logger.warn(`Media failed for newsletter ${item.id}: ${mediaErr.message}, archiving without media`);
+      }
+    }
+
+    const ts = new Date(item.send_time || item.create_time);
+    const subjectLine = item.settings?.subject_line || "Daily Newsletter";
+
+    await db.insert(newsletters).values({
+      id: String(item.id),
+      timestamp: ts,
+      url: archiveUrl || null,
+      subjectLine,
+      content: item.content || null,
+      s3_key: s3Key,
+      metadata: item,
+    });
+
+    archived++;
+    logger.info(`Archived newsletter ${item.id}: ${subjectLine}`);
   }
 
-  return { archived, skipped, failed };
+  return { archived, skipped };
 }
 
 export async function archiveNewsletters(start, end) {
@@ -158,7 +146,6 @@ export async function archiveNewsletters(start, end) {
 
   let totalArchived = 0;
   let totalSkipped = 0;
-  let totalFailed = 0;
 
   for (let i = resumeIdx; i < intervals.length; i++) {
     const { start: intervalStart, end: intervalEnd } = intervals[i];
@@ -172,15 +159,14 @@ export async function archiveNewsletters(start, end) {
       continue;
     }
 
-    const { archived, skipped, failed } = await archiveNewsletterBatch(items, browser);
+    const { archived, skipped } = await archiveNewsletterBatch(items, browser);
     totalArchived += archived;
     totalSkipped += skipped;
-    totalFailed += failed;
 
     const filled = Math.round(pct / 5);
     const bar = "█".repeat(filled) + "░".repeat(20 - filled);
-    logger.info(`[${bar}] ${pct}% (${i + 1}/${intervals.length}) | ${totalArchived} archived, ${totalSkipped} skipped, ${totalFailed} failed`);
+    logger.info(`[${bar}] ${pct}% (${i + 1}/${intervals.length}) | ${totalArchived} archived, ${totalSkipped} skipped`);
   }
 
-  logger.success(`Newsletters done: ${totalArchived} archived, ${totalSkipped} skipped, ${totalFailed} failed`);
+  logger.success(`Newsletters done: ${totalArchived} archived, ${totalSkipped} skipped`);
 }

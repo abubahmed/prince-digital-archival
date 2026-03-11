@@ -28,11 +28,7 @@ logger.info(`Archiving from ${START.toISOString().slice(0, 10)} to ${END.toISOSt
 
 for (const { name, fn } of sources) {
   logger.info(`\n========== ${name} ==========`);
-  try {
-    await fn();
-  } catch (err) {
-    logger.error(`${name} archiver crashed: ${err.message}`);
-  }
+  await fn();
 }
 
 await closeBrowser();
