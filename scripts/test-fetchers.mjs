@@ -11,7 +11,7 @@ import { fetchNewsletters } from "../src/fetchers/newsletters.mjs";
 import logger from "../src/util/logger.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, "..", "data");
+const DATA_DIR = join(__dirname, "..", "data", "fetchers");
 mkdirSync(DATA_DIR, { recursive: true });
 
 function save(name, data) {
@@ -20,16 +20,55 @@ function save(name, data) {
   logger.success(`Saved ${path}`);
 }
 
-const end = new Date();
-const start = new Date(end);
+const now = new Date();
+const recentEnd = new Date(now);
+recentEnd.setMonth(recentEnd.getMonth() - 2);
+const recentStart = new Date(recentEnd);
+recentStart.setMonth(recentStart.getMonth() - 1);
+
+async function fetchOldestSamples(name, fetchFn) {
+  let cursor = new Date("1969-01-01");
+  while (cursor < now) {
+    const end = new Date(cursor);
+    end.setMonth(end.getMonth() + 1);
+    logger.info(`${name} oldest: trying ${cursor.toISOString().slice(0, 10)} → ${end.toISOString().slice(0, 10)}`);
+    const results = await fetchFn(cursor, end);
+    if (results?.length > 0) return results.slice(0, 3);
+    cursor = end;
+  }
+  return [];
+}
+
+// articles & newsletters: fetch oldest + recent samples
+for (const { name, fetchFn } of [
+  { name: "articles", fetchFn: (s, e) => fetchArticles(s, e) },
+  { name: "newsletters", fetchFn: (s, e) => fetchNewsletters(s, e) },
+]) {
+  try {
+    logger.info(`Fetching ${name} (oldest)...`);
+    const oldSample = await fetchOldestSamples(name, fetchFn);
+    logger.success(`${name} oldest: sampled ${oldSample.length}`);
+
+    logger.info(`Fetching ${name} (recent)...`);
+    const recent = await fetchFn(recentStart, recentEnd);
+    const recentSample = recent?.slice(-3) ?? [];
+    logger.success(`${name} recent: sampled ${recentSample.length}`);
+
+    save(name, { oldest: oldSample, recent: recentSample });
+  } catch (err) {
+    logger.error(`Failed to fetch ${name}:`, err);
+    save(name, { error: err.message });
+  }
+}
+
+// other sources: single recent fetch
+const start = new Date(now);
 start.setDate(start.getDate() - 30);
 
 const fetchers = [
-  { name: "articles", fn: () => fetchArticles(start, end) },
   { name: "instagram", fn: () => fetchInstagramPosts(start) },
-  { name: "twitter", fn: () => fetchTweets(start, end) },
-  { name: "tiktok", fn: () => fetchTiktokPosts(new Date("2023-02-01"), end) },
-  { name: "newsletters", fn: () => fetchNewsletters(start, end) },
+  { name: "twitter", fn: () => fetchTweets(start, now) },
+  { name: "tiktok", fn: () => fetchTiktokPosts(new Date("2023-02-01"), now) },
 ];
 
 for (const { name, fn } of fetchers) {

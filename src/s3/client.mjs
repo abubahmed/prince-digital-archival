@@ -25,5 +25,5 @@ export function buildKey(source, timestamp, id, filename) {
   const date = new Date(timestamp);
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
-  return `${source}/${year}/${month}/${id}/${filename}`;
+  return `archives/${source}/${year}/${month}/${id}/${filename}`;
 }

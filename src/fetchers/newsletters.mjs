@@ -29,6 +29,10 @@ export async function fetchNewsletters(start, end) {
       if (campaigns.length === 0) break;
 
       for (const campaign of campaigns) {
+        if (!campaign || !campaign.id) {
+          logger.warn(`Skipping invalid newsletter: ${campaign}`);
+          continue;
+        }
         if (!campaign?.id || (!campaign?.send_time && !campaign?.create_time)) {
           logger.warn(`Skipping newsletter missing required fields: ${campaign?.id}`);
           continue;

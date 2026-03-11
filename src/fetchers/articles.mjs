@@ -80,6 +80,10 @@ export async function fetchArticles(start, end) {
       if (items.length === 0) break;
 
       for (const item of items) {
+        if (!item || !item.id) {
+          logger.warn(`Skipping invalid article: ${item}`);
+          continue;
+        }
         if (!item?.id || !item?.published_at || !item?.slug) {
           logger.warn(`Skipping article missing required fields: ${item?.id}`);
           continue;

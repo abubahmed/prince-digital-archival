@@ -14,7 +14,7 @@ export const articles = pgTable("articles", {
   headline: text("headline").notNull(),
   content: text("content"),
 
-  section: text("section"),
+  tags: jsonb("tags").$type(),
   s3_key: text("s3_key"),
   metadata: jsonb("metadata"),
 });

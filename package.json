@@ -6,23 +6,33 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "fetch": "node scripts/test-fetchers.mjs"
+    "db:push": "drizzle-kit push",
+    "db:flush": "node scripts/flush-db.mjs",
+    "fetch": "node scripts/test-fetchers.mjs",
+    "archive": "node scripts/archive.mjs",
+    "archive:articles": "node scripts/archive-articles.mjs",
+    "archive:newsletters": "node scripts/archive-newsletters.mjs",
+    "archive:instagram": "node scripts/archive-instagram.mjs",
+    "archive:twitter": "node scripts/archive-twitter.mjs",
+    "archive:tiktok": "node scripts/archive-tiktok.mjs"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "drizzle-kit": "^0.31.1",
     "prettier": "^3.8.1"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1006.0",
     "@mailchimp/mailchimp_marketing": "^3.0.80",
-    "@prisma/client": "^7.4.2",
+    "@neondatabase/serverless": "^0.10.4",
     "apify-client": "^2.22.2",
+    "consola": "^3.4.2",
     "dotenv": "^17.3.1",
+    "drizzle-orm": "^0.44.2",
     "image-size": "^2.0.2",
     "pdfkit": "^0.17.2",
-    "prisma": "^7.4.2",
     "puppeteer": "^24.39.0"
   }
 }
